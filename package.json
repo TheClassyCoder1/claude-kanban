@@ -1,5 +1,5 @@
 {
-  "name": "claude-code-summarizer",
+  "name": "claude-code-session-summarizer",
   "version": "0.1.0",
   "private": true,
   "scripts": {

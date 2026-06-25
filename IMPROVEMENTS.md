@@ -1,6 +1,6 @@
 # Improvements
 
-Planned improvements for `claude-code-summarizer`, ranked by value-for-effort.
+Planned improvements for `claude-code-session-summarizer`, ranked by value-for-effort.
 Based on the current code: a global Claude Code hook (`tools/feature-logger/`)
 that writes per-session JSON, and a Next.js dashboard (`src/`) that reads it.
 
