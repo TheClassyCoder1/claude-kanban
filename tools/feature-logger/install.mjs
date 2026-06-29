@@ -22,6 +22,15 @@ const settingsPath = path.join(claudeDir, "settings.json");
 // The command Claude Code will run. ~ is expanded by Claude Code.
 const HOOK_COMMAND = "~/.claude/feature-logger/feature-logger.mjs";
 
+export const HOOK_EVENTS = [
+  "SessionStart",
+  "UserPromptSubmit",
+  "Notification",
+  "PostToolUse",
+  "Stop",
+  "SessionEnd",
+];
+
 function log(msg) {
   process.stdout.write(`${msg}\n`);
 }
@@ -74,7 +83,7 @@ function main() {
   // 3. Merge hook entries idempotently.
   settings.hooks = settings.hooks || {};
   let changed = false;
-  for (const event of ["SessionStart", "Stop", "SessionEnd"]) {
+  for (const event of HOOK_EVENTS) {
     settings.hooks[event] = Array.isArray(settings.hooks[event]) ? settings.hooks[event] : [];
     if (hasOurHook(settings.hooks[event])) {
       log(`• ${event}: feature-logger hook already present — skipping`);
@@ -103,4 +112,7 @@ function main() {
   }
 }
 
-main();
+import { pathToFileURL } from "url";
+if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
+  main();
+}

@@ -14,7 +14,9 @@ import { formatTokens, formatUsd } from "@/lib/format";
 import StatsHeader from "./StatsHeader";
 import FeatureItem from "./FeatureItem";
 
-const SECTION_ORDER: Status[] = ["in_progress", "todo", "done"];
+const SECTION_ORDER = (Object.keys(STATUS_META) as Status[]).sort(
+  (a, b) => STATUS_META[a].order - STATUS_META[b].order,
+);
 const VIEWS: { id: ViewBy; label: string }[] = [
   { id: "feature", label: "Feature" },
   { id: "session", label: "Session" },
@@ -22,7 +24,9 @@ const VIEWS: { id: ViewBy; label: string }[] = [
 ];
 
 function StatusSections({ records }: { records: FeatureRecord[] }) {
-  const groups: Record<Status, FeatureRecord[]> = { in_progress: [], todo: [], done: [] };
+  const groups = Object.fromEntries(
+    SECTION_ORDER.map((s) => [s, [] as FeatureRecord[]]),
+  ) as Record<Status, FeatureRecord[]>;
   for (const r of records) groups[deriveStatus(r)].push(r);
   return (
     <div className="space-y-6">

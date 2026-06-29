@@ -9,7 +9,40 @@ import {
   slugForCwd,
   redactSecrets,
   parseTranscript,
+  liveStateForEvent,
 } from "./feature-logger.mjs";
+
+test("liveStateForEvent: permission notification → awaiting_approval", () => {
+  assert.equal(
+    liveStateForEvent("Notification", "Claude needs your permission to use Bash", undefined),
+    "awaiting_approval",
+  );
+});
+
+test("liveStateForEvent: non-permission notification preserves existing state", () => {
+  assert.equal(
+    liveStateForEvent("Notification", "Claude is waiting for your input", "awaiting_approval"),
+    "awaiting_approval",
+  );
+  assert.equal(liveStateForEvent("Notification", "", undefined), undefined);
+  assert.equal(liveStateForEvent("Notification", undefined, "idle"), "idle");
+});
+
+test("liveStateForEvent: Stop → idle", () => {
+  assert.equal(liveStateForEvent("Stop", undefined, "awaiting_approval"), "idle");
+});
+
+test("liveStateForEvent: UserPromptSubmit / SessionStart / SessionEnd → cleared", () => {
+  assert.equal(liveStateForEvent("UserPromptSubmit", undefined, "idle"), undefined);
+  assert.equal(liveStateForEvent("SessionStart", undefined, "idle"), undefined);
+  assert.equal(liveStateForEvent("SessionEnd", undefined, "awaiting_approval"), undefined);
+});
+
+test("liveStateForEvent: PostToolUse clears a stale awaiting_approval (user accepted)", () => {
+  // A tool only runs after its permission prompt is accepted, so PostToolUse
+  // means Claude is working again — clear the 'Waiting for you' state.
+  assert.equal(liveStateForEvent("PostToolUse", undefined, "awaiting_approval"), undefined);
+});
 
 test("classify buckets files by area", () => {
   assert.equal(classify("src/lib/featureLog.ts"), "Data layer & libs");

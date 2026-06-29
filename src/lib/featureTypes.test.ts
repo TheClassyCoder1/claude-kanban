@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { deriveStatus, countChanges, aggregate, type FeatureRecord } from "./featureTypes.ts";
+import { deriveStatus, countChanges, aggregate, STATUS_META, type FeatureRecord } from "./featureTypes.ts";
 
 function rec(over: Partial<FeatureRecord> = {}): FeatureRecord {
   return {
@@ -40,6 +40,31 @@ test("deriveStatus: turns or changes but no summary → in_progress", () => {
 
 test("deriveStatus: summary + source → done", () => {
   assert.equal(deriveStatus(rec({ summary: "did x", summarySource: "claude" })), "done");
+});
+
+test("deriveStatus: liveState awaiting_approval → awaiting_approval", () => {
+  assert.equal(deriveStatus(rec({ turns: 2, liveState: "awaiting_approval" })), "awaiting_approval");
+});
+
+test("deriveStatus: liveState idle → idle", () => {
+  assert.equal(deriveStatus(rec({ turns: 2, liveState: "idle" })), "idle");
+});
+
+test("deriveStatus: summary beats any liveState", () => {
+  assert.equal(
+    deriveStatus(rec({ summary: "did x", summarySource: "claude", liveState: "awaiting_approval" })),
+    "done",
+  );
+});
+
+test("deriveStatus: undefined liveState falls through to in_progress", () => {
+  assert.equal(deriveStatus(rec({ turns: 2, liveState: undefined })), "in_progress");
+});
+
+test("STATUS_META has an entry for every Status", () => {
+  for (const s of ["todo", "in_progress", "awaiting_approval", "idle", "done"] as const) {
+    assert.ok(STATUS_META[s], `missing STATUS_META for ${s}`);
+  }
 });
 
 test("countChanges sums created and edited across areas", () => {

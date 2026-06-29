@@ -40,6 +40,7 @@ const recordSchema = z.object({
   startedAt: z.string(),
   endedAt: z.string(),
   updatedAt: z.string(),
+  liveState: z.enum(["awaiting_approval", "idle"]).optional(),
 });
 
 const FEATURE_LOG_DIR = path.join(os.homedir(), ".claude", "feature-log");

@@ -95,6 +95,33 @@ export function redactSecrets(text) {
 }
 
 // ---------------------------------------------------------------------------
+// Live state: maps a hook event to the session's current waiting-state.
+//   awaiting_approval — Claude paused, needs the user to accept a prompt
+//   idle              — Claude finished its turn, waiting for the next message
+//   undefined         — no live override; fall back to turn/summary status
+// ---------------------------------------------------------------------------
+export function liveStateForEvent(event, message, existing) {
+  switch (event) {
+    case "Notification":
+      // Claude Code also fires Notification on ~60s input idle; only permission
+      // prompts set the waiting state. Non-permission → keep whatever we had.
+      return /permission/i.test(message || "") ? "awaiting_approval" : existing;
+    case "Stop":
+      return "idle";
+    case "PostToolUse":
+      // A tool only executes once its permission prompt is accepted; reaching
+      // PostToolUse means Claude is working again, so clear any 'awaiting'.
+      return undefined;
+    case "UserPromptSubmit":
+    case "SessionStart":
+    case "SessionEnd":
+      return undefined;
+    default:
+      return existing;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Transcript parsing
 // ---------------------------------------------------------------------------
 // Returns ONE base record per project (cwd) touched in the session. A session
@@ -404,7 +431,7 @@ function main() {
     const existing = readExisting(file) || {};
 
     const record = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       sessionId,
       ...base,
       // Preserve any summary already written (e.g. a late Stop after SessionEnd).
@@ -413,6 +440,7 @@ function main() {
       summarySource: existing.summarySource || "",
       summaryUsage: existing.summaryUsage,
       summaryCostUsd: existing.summaryCostUsd,
+      liveState: liveStateForEvent(event, input.message, existing.liveState),
       updatedAt: new Date().toISOString(),
     };
 

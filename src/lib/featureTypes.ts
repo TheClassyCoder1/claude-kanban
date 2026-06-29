@@ -24,6 +24,7 @@ export type FeatureRecord = {
   startedAt: string;
   endedAt: string;
   updatedAt: string;
+  liveState?: "awaiting_approval" | "idle";
   // Derived in the reader:
   estimatedCostUsd: number;
   totalTokens: number;
@@ -37,7 +38,7 @@ export type Aggregates = {
   totalCostUsd: number;
 };
 
-export type Status = "todo" | "in_progress" | "done";
+export type Status = "todo" | "in_progress" | "awaiting_approval" | "idle" | "done";
 
 export function countChanges(r: FeatureRecord): number {
   return Object.values(r.filesByArea).reduce(
@@ -49,6 +50,8 @@ export function countChanges(r: FeatureRecord): number {
 /** Lifecycle status derived from the captured record. */
 export function deriveStatus(r: FeatureRecord): Status {
   if (r.summary && r.summarySource) return "done";
+  if (r.liveState === "awaiting_approval") return "awaiting_approval";
+  if (r.liveState === "idle") return "idle";
   if (r.turns > 0 || countChanges(r) > 0) return "in_progress";
   return "todo";
 }
@@ -57,26 +60,40 @@ export const STATUS_META: Record<
   Status,
   { label: string; description: string; badge: string; dot: string; order: number }
 > = {
+  awaiting_approval: {
+    label: "Waiting for you",
+    description: "Claude is paused — needs you to accept a prompt.",
+    badge: "bg-amber-100 text-amber-700",
+    dot: "bg-amber-500",
+    order: 0,
+  },
   in_progress: {
     label: "In progress",
     description: "Being worked on — no end-of-session summary yet.",
     badge: "bg-blue-100 text-blue-700",
     dot: "bg-blue-500",
-    order: 0,
+    order: 1,
+  },
+  idle: {
+    label: "Finished — waiting for input",
+    description: "Claude finished its turn — waiting for your next message.",
+    badge: "bg-cyan-100 text-cyan-700",
+    dot: "bg-cyan-500",
+    order: 2,
   },
   todo: {
     label: "To do",
     description: "Session started but not picked up yet.",
     badge: "bg-slate-200 text-slate-600",
     dot: "bg-slate-400",
-    order: 1,
+    order: 3,
   },
   done: {
     label: "Done",
     description: "Completed — summarized at session end.",
     badge: "bg-emerald-100 text-emerald-700",
     dot: "bg-emerald-500",
-    order: 2,
+    order: 4,
   },
 };
 
