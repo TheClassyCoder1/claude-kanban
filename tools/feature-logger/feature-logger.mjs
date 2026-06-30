@@ -15,6 +15,19 @@ import os from "os";
 import { spawnSync } from "child_process";
 
 // ---------------------------------------------------------------------------
+// Logging: write to stderr so hook diagnostics don't interfere with stdout
+// (which Claude Code may parse). All errors are non-fatal — the hook must
+// never block the user's turn.
+// ---------------------------------------------------------------------------
+function warn(...args) {
+  try {
+    process.stderr.write(`[feature-logger] ${args.map(String).join(" ")}\n`);
+  } catch {
+    // If even stderr is broken, silently give up.
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Parsing helpers. Pure functions are exported for unit tests; running this
 // file as a hook still executes main() via the entry guard at the bottom.
 // ---------------------------------------------------------------------------
@@ -301,7 +314,8 @@ function recordPath(sessionId, projectPath) {
 function readExisting(file) {
   try {
     return JSON.parse(fs.readFileSync(file, "utf8"));
-  } catch {
+  } catch (err) {
+    warn(`failed to read existing record ${file}:`, err);
     return null;
   }
 }
@@ -369,7 +383,13 @@ function summarizeWithClaude(rec) {
       maxBuffer: 8 * 1024 * 1024,
       env: { ...process.env, FEATURE_LOGGER_ACTIVE: "1" },
     });
-    if (res.status !== 0 || !res.stdout) return null;
+    if (res.status !== 0 || !res.stdout) {
+      warn(
+        `claude -p exited with status ${res.status}`,
+        res.stderr ? `stderr: ${res.stderr.slice(0, 200)}` : "",
+      );
+      return null;
+    }
     const parsed = JSON.parse(res.stdout);
     const text = (parsed.result || "").trim();
     if (!text) return null;
@@ -380,7 +400,8 @@ function summarizeWithClaude(rec) {
       summaryUsage: parsed.usage || undefined,
       summaryCostUsd: typeof parsed.total_cost_usd === "number" ? parsed.total_cost_usd : undefined,
     };
-  } catch {
+  } catch (err) {
+    warn("claude -p summary failed:", err);
     return null;
   }
 }
@@ -391,7 +412,8 @@ function summarizeWithClaude(rec) {
 function readStdin() {
   try {
     return fs.readFileSync(0, "utf8");
-  } catch {
+  } catch (err) {
+    warn("failed to read stdin:", err);
     return "";
   }
 }
@@ -403,7 +425,8 @@ function main() {
   let input;
   try {
     input = JSON.parse(readStdin() || "{}");
-  } catch {
+  } catch (err) {
+    warn("failed to parse stdin JSON:", err);
     return;
   }
 
@@ -467,8 +490,8 @@ import { pathToFileURL } from "url";
 if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {
   try {
     main();
-  } catch {
-    // never block the user's turn
+  } catch (err) {
+    warn("unhandled error in main():", err);
   }
   process.exit(0);
 }

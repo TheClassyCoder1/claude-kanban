@@ -12,6 +12,7 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { HOOK_EVENTS } from "./install.mjs";
 
 const claudeDir = path.join(os.homedir(), ".claude");
 const destDir = path.join(claudeDir, "feature-logger");
@@ -50,7 +51,7 @@ function main() {
     }
     let changed = false;
     if (settings.hooks && typeof settings.hooks === "object") {
-      for (const event of ["SessionStart", "Stop", "SessionEnd"]) {
+      for (const event of HOOK_EVENTS) {
         const { next, removed } = stripOurHooks(settings.hooks[event]);
         if (removed > 0) {
           settings.hooks[event] = next;
@@ -66,10 +67,15 @@ function main() {
       const backup = `${settingsPath}.bak-${Date.now()}`;
       fs.copyFileSync(settingsPath, backup);
       log(`✓ Backed up settings → ${backup}`);
-      const tmp = `${settingsPath}.tmp`;
-      fs.writeFileSync(tmp, JSON.stringify(settings, null, 2));
-      fs.renameSync(tmp, settingsPath);
-      log(`✓ Wrote ${settingsPath}`);
+      try {
+        const tmp = `${settingsPath}.tmp`;
+        fs.writeFileSync(tmp, JSON.stringify(settings, null, 2));
+        fs.renameSync(tmp, settingsPath);
+        log(`✓ Wrote ${settingsPath}`);
+      } catch (err) {
+        log(`! Could not write ${settingsPath}: ${err?.message || err}`);
+        log("  The backup was already saved — remove the hooks manually if needed.");
+      }
     } else {
       log("• No feature-logger hooks found in settings.json — nothing to remove.");
     }
@@ -79,8 +85,13 @@ function main() {
 
   // 2. Delete the copied script dir.
   if (fs.existsSync(destDir)) {
-    fs.rmSync(destDir, { recursive: true, force: true });
-    log(`✓ Removed ${destDir}`);
+    try {
+      fs.rmSync(destDir, { recursive: true, force: true });
+      log(`✓ Removed ${destDir}`);
+    } catch (err) {
+      log(`! Could not remove ${destDir}: ${err?.message || err}`);
+      log("  Remove it manually if you like.");
+    }
   }
 
   log("\nDone. Captured records remain in ~/.claude/feature-log/ (delete manually if you want).");

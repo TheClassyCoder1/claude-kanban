@@ -47,14 +47,21 @@ const FEATURE_LOG_DIR = path.join(os.homedir(), ".claude", "feature-log");
 
 /** Parse + validate one record file's contents, deriving cost/totals. Returns
  *  null for anything malformed or schema-invalid. Pure — safe to unit test. */
-export function recordFromJson(text: string): FeatureRecord | null {
+export function recordFromJson(text: string, source?: string): FeatureRecord | null {
   let parsed;
   try {
     parsed = recordSchema.safeParse(JSON.parse(text));
-  } catch {
+  } catch (err) {
+    console.warn(`[feature-log] failed to parse JSON${source ? ` from ${source}` : ""}:`, err);
     return null;
   }
-  if (!parsed.success) return null;
+  if (!parsed.success) {
+    console.warn(
+      `[feature-log] schema validation failed${source ? ` for ${source}` : ""}:`,
+      parsed.error.issues,
+    );
+    return null;
+  }
   const r = parsed.data;
   const totalTokens =
     r.tokens.input + r.tokens.output + r.tokens.cacheRead + r.tokens.cacheCreation;
@@ -81,8 +88,8 @@ export async function readFeatureRecords(): Promise<FeatureRecord[]> {
         for (const f of await fs.readdir(dir)) {
           if (f.endsWith(".json")) filePaths.push(path.join(dir, f));
         }
-      } catch {
-        // skip unreadable project dir
+      } catch (err) {
+        console.warn(`[feature-log] skipping unreadable project dir ${dir}:`, err);
       }
     }),
   );
@@ -90,9 +97,10 @@ export async function readFeatureRecords(): Promise<FeatureRecord[]> {
   const parsed = await Promise.all(
     filePaths.map(async (file) => {
       try {
-        return recordFromJson(await fs.readFile(file, "utf8"));
-      } catch {
-        return null; // unreadable file
+        return recordFromJson(await fs.readFile(file, "utf8"), file);
+      } catch (err) {
+        console.warn(`[feature-log] failed to read ${file}:`, err);
+        return null;
       }
     }),
   );

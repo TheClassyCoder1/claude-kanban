@@ -3,12 +3,23 @@ import AutoRefresh from "@/components/AutoRefresh";
 import TabBadge from "@/components/TabBadge";
 import { readFeatureRecords } from "@/lib/featureLog";
 import { deriveStatus } from "@/lib/featureTypes";
+import type { FeatureRecord } from "@/lib/featureTypes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const records = await readFeatureRecords();
+  let records: FeatureRecord[];
+  let loadError: string | null = null;
+  try {
+    records = await readFeatureRecords();
+  } catch (err) {
+    console.error("[feature-log] failed to load records:", err);
+    records = [];
+    loadError =
+      err instanceof Error ? err.message : "An unexpected error occurred while reading feature logs.";
+  }
+
   const attention = records.filter((r) => {
     const s = deriveStatus(r);
     return s === "awaiting_approval" || s === "idle";
@@ -23,6 +34,12 @@ export default async function Home() {
             What you built with Claude Code — per session, with token usage and cost.
           </p>
         </header>
+        {loadError && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <p className="font-medium">Failed to load feature records</p>
+            <p className="mt-1 text-xs text-red-600">{loadError}</p>
+          </div>
+        )}
         <FeatureDashboard records={records} />
       </div>
       <AutoRefresh />

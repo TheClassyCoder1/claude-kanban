@@ -74,8 +74,8 @@ function main() {
   fs.copyFileSync(path.join(here, "feature-logger.mjs"), destScript);
   try {
     fs.chmodSync(destScript, 0o755);
-  } catch {
-    /* best effort */
+  } catch (err) {
+    log(`! Could not chmod ${destScript}: ${err?.message || err} (non-fatal)`);
   }
   log(`✓ Installed script → ${destScript}`);
 
