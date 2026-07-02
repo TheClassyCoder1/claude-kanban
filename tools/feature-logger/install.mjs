@@ -21,6 +21,7 @@ const settingsPath = path.join(claudeDir, "settings.json");
 // The commands Claude Code will run. ~ is expanded by Claude Code.
 const HOOK_COMMAND = "~/.claude/feature-logger/feature-logger.mjs";
 const AG_COMMAND = "~/.claude/approval-gate/approval-gate.mjs";
+const PR_COMMAND = "~/.claude/prompt-relay/prompt-relay.mjs";
 
 export const HOOK_EVENTS = [
   "SessionStart",
@@ -38,14 +39,23 @@ export const INSTALLS = [
   {
     command: HOOK_COMMAND,
     events: HOOK_EVENTS,
+    timeout: 60,
     src: "feature-logger/feature-logger.mjs",
     dest: path.join(claudeDir, "feature-logger", "feature-logger.mjs"),
   },
   {
     command: AG_COMMAND,
     events: ["PreToolUse"],
+    timeout: 600,
     src: "approval-gate/approval-gate.mjs",
     dest: path.join(claudeDir, "approval-gate", "approval-gate.mjs"),
+  },
+  {
+    command: PR_COMMAND,
+    events: ["Stop"],
+    timeout: 600,
+    src: "prompt-relay/prompt-relay.mjs",
+    dest: path.join(claudeDir, "prompt-relay", "prompt-relay.mjs"),
   },
 ];
 
@@ -53,10 +63,10 @@ function log(msg) {
   process.stdout.write(`${msg}\n`);
 }
 
-function hookEntry(command) {
+function hookEntry(command, timeout) {
   return {
     matcher: "",
-    hooks: [{ type: "command", command, timeout: 60 }],
+    hooks: [{ type: "command", command, timeout }],
   };
 }
 
@@ -65,6 +75,22 @@ function hasOurHook(arr, command) {
     Array.isArray(arr) &&
     arr.some((e) => Array.isArray(e?.hooks) && e.hooks.some((h) => h?.command === command))
   );
+}
+
+// Bring an already-present entry's timeout up to date. Returns true if it changed.
+export function refreshTimeout(arr, command, timeout) {
+  let changed = false;
+  if (!Array.isArray(arr)) return false;
+  for (const e of arr) {
+    if (!Array.isArray(e?.hooks)) continue;
+    for (const h of e.hooks) {
+      if (h?.command === command && h.timeout !== timeout) {
+        h.timeout = timeout;
+        changed = true;
+      }
+    }
+  }
+  return changed;
 }
 
 // Remove our command from any event we no longer register (renames/removals),
@@ -122,9 +148,14 @@ function main() {
     for (const event of inst.events) {
       settings.hooks[event] = Array.isArray(settings.hooks[event]) ? settings.hooks[event] : [];
       if (hasOurHook(settings.hooks[event], inst.command)) {
-        log(`• ${event}: ${inst.command} already present — skipping`);
+        if (refreshTimeout(settings.hooks[event], inst.command, inst.timeout)) {
+          changed = true;
+          log(`✓ ${event}: updated ${inst.command} timeout → ${inst.timeout}s`);
+        } else {
+          log(`• ${event}: ${inst.command} already present — skipping`);
+        }
       } else {
-        settings.hooks[event].push(hookEntry(inst.command));
+        settings.hooks[event].push(hookEntry(inst.command, inst.timeout));
         changed = true;
         log(`✓ ${event}: added ${inst.command}`);
       }

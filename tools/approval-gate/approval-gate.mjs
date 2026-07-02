@@ -16,8 +16,17 @@ const BASE = path.join(os.homedir(), ".claude", "feature-log");
 const MODE_FILE = path.join(BASE, "mode.json");
 const PENDING_DIR = path.join(BASE, "pending");
 const DECISIONS_DIR = path.join(BASE, "decisions");
-const WINDOW_MS = Number(process.env.APPROVAL_WINDOW_MS) || 300_000;
+const WINDOW_MIN = 30_000;
+const WINDOW_MAX = 600_000;
 const POLL_MS = Number(process.env.APPROVAL_POLL_MS) || 1000;
+
+// Shared with prompt-relay: the wait window is the UI-configured relayWindowMs
+// in mode.json, so one dropdown governs both approvals and prompt relay.
+export function clampWindow(ms) {
+  const n = Number(ms);
+  if (!Number.isFinite(n)) return WINDOW_MAX;
+  return Math.max(WINDOW_MIN, Math.min(WINDOW_MAX, n));
+}
 
 export function shouldGate(mode, tool) {
   return mode === "dashboard" && GATED_TOOLS.has(tool);
@@ -56,11 +65,12 @@ function readStdin() {
   }
 }
 
-function readMode() {
+function readControl() {
   try {
-    return JSON.parse(fs.readFileSync(MODE_FILE, "utf8")).mode || "cli";
+    const c = JSON.parse(fs.readFileSync(MODE_FILE, "utf8"));
+    return { mode: c.mode || "cli", relayWindowMs: c.relayWindowMs };
   } catch {
-    return "cli";
+    return { mode: "cli", relayWindowMs: undefined };
   }
 }
 
@@ -91,7 +101,8 @@ async function main() {
   }
   const sid = input.session_id;
   const tool = input.tool_name;
-  if (!sid || !shouldGate(readMode(), tool)) return;
+  const { mode, relayWindowMs } = readControl();
+  if (!sid || !shouldGate(mode, tool)) return;
 
   const pendingFile = path.join(PENDING_DIR, `${sid}.json`);
   const decisionFile = path.join(DECISIONS_DIR, `${sid}.json`);
@@ -103,7 +114,7 @@ async function main() {
     createdAt: new Date().toISOString(),
   });
 
-  const deadline = Date.now() + WINDOW_MS;
+  const deadline = Date.now() + clampWindow(relayWindowMs ?? WINDOW_MAX);
   try {
     while (Date.now() < deadline) {
       let decision;

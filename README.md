@@ -74,6 +74,19 @@ Only one surface is live at a time: while Dashboard mode waits for your click th
 terminal isn't prompting yet; on timeout it hands back to the terminal. Powered by a
 second hook, `tools/approval-gate/approval-gate.mjs`, installed by `npm run hooks`.
 
+### Sending a prompt from the dashboard
+
+In **Dashboard mode**, when a session finishes a turn its card shows a **Send a
+follow-up prompt** box. Type an instruction and **Send** — the session continues with
+it. A **wait** dropdown (next to the mode toggle) sets the shared dashboard wait window —
+how long a finished session waits for a prompt **and** how long a permission prompt
+waits for an approval (1–10 min; 10 is Claude's hook ceiling). You can only send/approve
+within that window — once it lapses, control falls back (idle for prompts, terminal
+prompt for approvals).
+
+Powered by a third hook, `tools/prompt-relay/prompt-relay.mjs` (a `Stop` hook),
+installed by `npm run hooks`.
+
 ## 🚀 Setup
 
 ### 1. Install the hook _(one time, global)_
@@ -126,21 +139,27 @@ tools/feature-logger/
   README.md            # hook docs + manual install + testing
 tools/approval-gate/
   approval-gate.mjs    # PreToolUse hook — routes gated approvals to the dashboard
+tools/prompt-relay/
+  prompt-relay.mjs     # Stop hook — sends dashboard prompts into a session
 src/
-  app/page.tsx         # server: reads feature log + mode + pending → <FeatureDashboard>
+  app/page.tsx         # server: reads feature log + mode + pending + awaiting → <FeatureDashboard>
   app/layout.tsx
-  app/api/mode/route.ts      # POST: set CLI/Dashboard mode
-  app/api/decision/route.ts  # POST: write an allow/deny decision
+  app/api/mode/route.ts          # POST: set CLI/Dashboard mode
+  app/api/decision/route.ts      # POST: write an allow/deny decision
+  app/api/prompt/route.ts        # POST: queue a follow-up prompt for a session
+  app/api/relay-window/route.ts  # POST: set the prompt wait window
   components/
     FeatureDashboard.tsx  # stats header + project filter + list (client)
     FeatureItem.tsx       # one session: summary, files, token breakdown, cost
     StatsHeader.tsx       # totals: features, projects, output tokens, est. cost
     ModeToggle.tsx        # CLI/Dashboard mode switch (client)
     PendingApproval.tsx   # Approve/Deny panel for a paused session (client)
+    SendPrompt.tsx        # follow-up prompt box (client)
+    RelayWindowSelect.tsx # wait-window dropdown (client)
   lib/
     featureLog.ts      # reads/validates ~/.claude/feature-log/**/*.json (server)
     featureTypes.ts    # client-safe types + aggregate()
-    approvals.ts       # mode + pending-approval read/write (server)
+    approvals.ts       # mode + pending-approval + relay-window/prompt read/write (server)
     pricing.ts         # token → USD estimate (per-model rates, cache discounts)
     format.ts          # deterministic token/USD/date formatters
 ```

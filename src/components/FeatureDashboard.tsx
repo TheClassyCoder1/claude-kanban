@@ -15,6 +15,7 @@ import type { PendingApproval } from "@/lib/approvals";
 import StatsHeader from "./StatsHeader";
 import FeatureItem from "./FeatureItem";
 import PendingApprovalCard from "./PendingApproval";
+import SendPrompt from "./SendPrompt";
 
 const SECTION_ORDER = (Object.keys(STATUS_META) as Status[]).sort(
   (a, b) => STATUS_META[a].order - STATUS_META[b].order,
@@ -28,12 +29,26 @@ const VIEWS: { id: ViewBy; label: string }[] = [
 type PendingMap = Record<string, PendingApproval>;
 
 // A record card plus, if the session is paused on a permission prompt, its
-// Approve/Deny panel. Used by every view so pending shows wherever a card does.
-function RecordCard({ record, pending }: { record: FeatureRecord; pending?: PendingApproval }) {
+// Approve/Deny panel; or, if it finished a turn and is awaiting input in
+// Dashboard mode, a Send-prompt box. Used by every view.
+function RecordCard({
+  record,
+  pending,
+  awaiting,
+}: {
+  record: FeatureRecord;
+  pending?: PendingApproval;
+  awaiting?: boolean;
+}) {
+  const label =
+    record.summaryHeadline?.trim() ||
+    record.userPrompts[0] ||
+    `${record.projectName} · ${record.sessionId.slice(0, 8)}`;
   return (
     <div>
       <FeatureItem record={record} />
-      {pending && <PendingApprovalCard pending={pending} />}
+      {pending && <PendingApprovalCard pending={pending} label={label} />}
+      {awaiting && !pending && <SendPrompt sessionId={record.sessionId} label={label} />}
     </div>
   );
 }
@@ -41,9 +56,11 @@ function RecordCard({ record, pending }: { record: FeatureRecord; pending?: Pend
 function StatusSections({
   records,
   pendingBySession,
+  awaitingSessions,
 }: {
   records: FeatureRecord[];
   pendingBySession: PendingMap;
+  awaitingSessions: Set<string>;
 }) {
   const groups = Object.fromEntries(
     SECTION_ORDER.map((s) => [s, [] as FeatureRecord[]]),
@@ -70,6 +87,7 @@ function StatusSections({
                   key={`${r.projectPath}:${r.sessionId}`}
                   record={r}
                   pending={pendingBySession[r.sessionId]}
+                  awaiting={awaitingSessions.has(r.sessionId)}
                 />
               ))}
             </div>
@@ -84,10 +102,12 @@ function GroupedView({
   records,
   by,
   pendingBySession,
+  awaitingSessions,
 }: {
   records: FeatureRecord[];
   by: "session" | "project";
   pendingBySession: PendingMap;
+  awaitingSessions: Set<string>;
 }) {
   const groups = useMemo(() => groupRecords(records, by), [records, by]);
   return (
@@ -109,6 +129,7 @@ function GroupedView({
                 key={`${r.projectPath}:${r.sessionId}`}
                 record={r}
                 pending={pendingBySession[r.sessionId]}
+                awaiting={awaitingSessions.has(r.sessionId)}
               />
             ))}
           </div>
@@ -121,9 +142,11 @@ function GroupedView({
 export default function FeatureDashboard({
   records,
   pendingBySession = {},
+  awaitingSessions = new Set<string>(),
 }: {
   records: FeatureRecord[];
   pendingBySession?: PendingMap;
+  awaitingSessions?: Set<string>;
 }) {
   const projects = useMemo(
     () => [...new Set(records.map((r) => r.projectName))].sort(),
@@ -193,9 +216,18 @@ export default function FeatureDashboard({
       </div>
 
       {view === "feature" ? (
-        <StatusSections records={filtered} pendingBySession={pendingBySession} />
+        <StatusSections
+          records={filtered}
+          pendingBySession={pendingBySession}
+          awaitingSessions={awaitingSessions}
+        />
       ) : (
-        <GroupedView records={filtered} by={view} pendingBySession={pendingBySession} />
+        <GroupedView
+          records={filtered}
+          by={view}
+          pendingBySession={pendingBySession}
+          awaitingSessions={awaitingSessions}
+        />
       )}
     </div>
   );

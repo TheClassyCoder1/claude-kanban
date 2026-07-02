@@ -52,8 +52,8 @@ export default function FeatureItem({ record }: { record: FeatureRecord }) {
             )}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-4 text-right">
-          <div>
+        <div className="flex shrink-0 items-center gap-3 text-right sm:gap-4">
+          <div className="hidden sm:block">
             <div className="text-[10px] uppercase tracking-wide text-slate-400">out</div>
             <div className="text-sm font-medium text-slate-700">
               {formatTokens(record.tokens.output)}

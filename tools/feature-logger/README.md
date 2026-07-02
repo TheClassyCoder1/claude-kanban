@@ -54,6 +54,12 @@ on `PreToolUse`. That hook only acts in **Dashboard mode** (the `~/.claude/featu
 flag, default `cli` = no-op); in Dashboard mode it routes gated-tool permission prompts to
 the dashboard, falling back to the terminal prompt on timeout.
 
+It also copies `tools/prompt-relay/prompt-relay.mjs` and registers it on `Stop`. In
+Dashboard mode it blocks a finished turn up to the configured window (`relayWindowMs` in
+`mode.json`) waiting for a dashboard-sent prompt, returning it as a continuation; on
+timeout the session stops normally. Blocking hooks (approval-gate, prompt-relay) register
+`timeout: 600`; feature-logger stays `60`.
+
 ## Manual install
 
 If the installer can't write `~/.claude/settings.json` (e.g. a managed/cloud container),

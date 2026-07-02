@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { HOOK_EVENTS, pruneStaleHooks, INSTALLS } from "./install.mjs";
+import { HOOK_EVENTS, pruneStaleHooks, INSTALLS, refreshTimeout } from "./install.mjs";
 
 const CMD = "~/.claude/feature-logger/feature-logger.mjs";
 const ours = () => ({ matcher: "", hooks: [{ type: "command", command: CMD }] });
@@ -33,6 +33,25 @@ test("INSTALLS registers feature-logger on its events and approval-gate on PreTo
   const ag = INSTALLS.find((i) => i.command.includes("approval-gate"));
   assert.deepEqual([...fl.events].sort(), [...HOOK_EVENTS].sort());
   assert.deepEqual(ag.events, ["PreToolUse"]);
+});
+
+test("INSTALLS: prompt-relay on Stop, blocking hooks at timeout 600", () => {
+  const fl = INSTALLS.find((i) => i.command.includes("feature-logger"));
+  const ag = INSTALLS.find((i) => i.command.includes("approval-gate"));
+  const pr = INSTALLS.find((i) => i.command.includes("prompt-relay"));
+  assert.equal(fl.timeout, 60);
+  assert.equal(ag.timeout, 600);
+  assert.deepEqual(pr.events, ["Stop"]);
+  assert.equal(pr.timeout, 600);
+});
+
+test("refreshTimeout upgrades a stale 60s entry to 600s", () => {
+  const AG = "~/.claude/approval-gate/approval-gate.mjs";
+  const arr = [{ matcher: "", hooks: [{ type: "command", command: AG, timeout: 60 }] }];
+  const changed = refreshTimeout(arr, AG, 600);
+  assert.equal(changed, true);
+  assert.equal(arr[0].hooks[0].timeout, 600);
+  assert.equal(refreshTimeout(arr, AG, 600), false);
 });
 
 test("pruning per-command leaves the other command's hook intact", () => {

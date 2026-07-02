@@ -51,7 +51,7 @@ const SCRIPT = path.join(HERE, "approval-gate.mjs");
 
 function runHook(home, event, env = {}) {
   const child = spawn(process.execPath, [SCRIPT], {
-    env: { ...process.env, HOME: home, APPROVAL_POLL_MS: "50", APPROVAL_WINDOW_MS: "3000", ...env },
+    env: { ...process.env, HOME: home, APPROVAL_POLL_MS: "50", ...env },
   });
   let out = "";
   child.stdout.on("data", (d) => (out += d));
@@ -63,7 +63,7 @@ test("main: dashboard mode + gated tool waits for a decision, emits allow, clean
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "appgate-"));
   const base = path.join(home, ".claude", "feature-log");
   fs.mkdirSync(base, { recursive: true });
-  fs.writeFileSync(path.join(base, "mode.json"), JSON.stringify({ mode: "dashboard" }));
+  fs.writeFileSync(path.join(base, "mode.json"), JSON.stringify({ mode: "dashboard", relayWindowMs: 30_000 }));
   const sid = "sess-1";
 
   const p = runHook(home, {
